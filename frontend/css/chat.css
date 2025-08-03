@@ -46,6 +46,8 @@ body {
 }
 
 .user {
+    display: flex;
+    justify-content: space-between;
     padding: 10px 15px;
     cursor: pointer;
     border-radius: 8px;

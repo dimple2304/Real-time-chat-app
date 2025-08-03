@@ -1,7 +1,7 @@
 import Message from "../models/message.js";
 import User from "../models/user.js";
 
-// Get messages between two users
+// Get all messages exchanged between two users
 export const getMessagesBetweenUsers = async (req, res) => {
     try {
         const { user1, user2 } = req.params;
@@ -29,7 +29,7 @@ export const getMessagesBetweenUsers = async (req, res) => {
     }
 };
 
-// Get chat contacts
+// Get recent chat contacts and last messages
 export const getUserChats = async (req, res) => {
     const { username } = req.params;
 
@@ -67,17 +67,17 @@ export const getUserChats = async (req, res) => {
     }
 };
 
-
-
+// Send a new message
 export const sendMessage = async (req, res) => {
     const { sender, receiver, content } = req.body;
     try {
         const senderUser = await User.findOne({ username: sender });
         const receiverUser = await User.findOne({ username: receiver });
 
-        if (!senderUser || !receiverUser) return res.status(404).json({ message: "User(s) not found" });
+        if (!senderUser || !receiverUser)
+            return res.status(404).json({ message: "User(s) not found" });
 
-        if (sender.username === receiver.username) {
+        if (sender === receiver) {
             return res.status(400).json({ success: false, message: "Cannot send message to self" });
         }
 
@@ -85,11 +85,12 @@ export const sendMessage = async (req, res) => {
             sender: senderUser._id,
             receiver: receiverUser._id,
             content,
+            isRead: false // ✅ Default: message is unread
         });
 
         const saved = await message.save();
 
-        // Update recent chats
+        // Add each other to recent chats
         await User.findByIdAndUpdate(senderUser._id, {
             $addToSet: { recentChats: receiverUser._id },
         });
@@ -98,7 +99,10 @@ export const sendMessage = async (req, res) => {
             $addToSet: { recentChats: senderUser._id },
         });
 
-        const full = await Message.findById(saved._id).populate("sender", "username").populate("receiver", "username");
+        const full = await Message.findById(saved._id)
+            .populate("sender", "username")
+            .populate("receiver", "username");
+
         res.json(full);
     } catch (err) {
         console.error(err);
@@ -106,62 +110,65 @@ export const sendMessage = async (req, res) => {
     }
 };
 
-
-
-// Get unread count per sender for the current logged-in user
+// Get unread counts for a user from each sender
 export const getUnreadCounts = async (req, res) => {
-    try {
-        const { username } = req.params;
-        console.log("Unread counts requested for:", username);
+  try {
+    const { username } = req.params;
 
-        const user = await User.findOne({ username });
-        console.log("Fetching unread counts for:", user);
-        if (!user) {
-            console.log("User not found:", username);
-            return res.status(404).json({ message: "User not found", username });
-        }
+    // Find the user by username
+    const user = await User.findOne({ username });
 
-        const unreadMessages = await Message.find({
-            receiver: user._id,
-            isRead: false
-        }).populate("sender", "username");
-
-        const unreadCountMap = {};
-        unreadMessages.forEach(msg => {
-            const senderUsername = msg.sender.username;
-            unreadCountMap[senderUsername] = (unreadCountMap[senderUsername] || 0) + 1;
-        });
-
-        res.json({ success: true, counts: unreadCountMap });
-    } catch (err) {
-        console.error("Error in getUnreadCounts:", err);
-        res.status(500).json({ message: "Error fetching unread counts" });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
     }
+
+    // Find unread messages for this user
+    const unreadMessages = await Message.find({
+      receiver: user._id,
+      isRead: false,
+    });
+
+    const unreadCounts = {};
+
+    // Group by sender
+    unreadMessages.forEach((msg) => {
+      const senderId = msg.sender.toString();
+      unreadCounts[senderId] = (unreadCounts[senderId] || 0) + 1;
+    });
+
+    res.json(unreadCounts);
+  } catch (error) {
+    console.error('Error in getUnreadCounts:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
 };
 
 
+// Mark messages as read when a user opens a chat
+// In messageController.js
 
-
-// Mark messages as read when receiver opens the chat
 export const markMessagesAsRead = async (req, res) => {
-    try {
-        const { user1, user2 } = req.params;
+  const { senderId, receiverId } = req.params;
 
-        const receiver = await User.findOne({ username: user1 });
-        const sender = await User.findOne({ username: user2 });
+  try {
+    const result = await Message.updateMany(
+      {
+        sender: senderId,
+        receiver: receiverId,
+        isRead: false
+      },
+      {
+        $set: { isRead: true }
+      }
+    );
 
-        if (!receiver || !sender)
-            return res.status(404).json({ message: "User(s) not found" });
+    console.log("Marked messages as read:", result); // ✅ Add this log
 
-        await Message.updateMany(
-            { sender: sender._id, receiver: receiver._id, isRead: false },
-            { $set: { isRead: true } }
-        );
-
-        res.json({ success: true, message: "Messages marked as read" });
-    } catch (err) {
-        console.error("Failed to mark messages as read:", err);
-        res.status(500).json({ message: "Failed to mark messages as read" });
-    }
+    res.status(200).json({ message: "Messages marked as read." });
+  } catch (error) {
+    console.error("Failed to mark messages as read:", error); // ✅ Add this log
+    res.status(500).json({ error: "Failed to mark messages as read" });
+  }
 };
+
 

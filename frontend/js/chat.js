@@ -43,7 +43,28 @@ async function handleUserClick(username) {
     }
 
     await fetchMessages(username);
-    unreadCountMap.set(username, 0); // Clear unread count after opening chat
+
+    try {
+        const res = await fetch(`/api/users/find/${username}`, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!res.ok) throw new Error("User not found or server error");
+        const selectedUser = await res.json();
+
+        await fetch(`/api/messages/mark-read/${selectedUser._id}/${liveUser._id}`, {
+            method: 'PUT',
+            headers: { Authorization: `Bearer ${token}` }
+        });
+
+        const updatedCounts = await fetchUnreadCounts();
+        updateUnreadUI(updatedCounts);
+
+    } catch (err) {
+        console.error("Failed to mark messages as read:", err);
+    }
+
+    unreadCountMap.set(username, 0);
     renderUserSidebar(recentChats, getSuggestedUsers());
 }
 
@@ -87,6 +108,7 @@ async function fetchRecentChats() {
 
         recentChats = recent;
         renderUserSidebar(recent, suggested);
+
     } catch (err) {
         console.error("Error fetching chat users:", err);
     }
@@ -96,16 +118,45 @@ async function fetchRecentChats() {
 async function fetchUnreadCounts() {
     try {
         const res = await fetch(`/api/messages/unread-counts/${liveUser.username}`, {
-            headers: { Authorization: `Bearer ${token}` }
+            headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json"
+            }
         });
-        const data = await res.json();
 
-        for (const sender in data.counts) {
-            unreadCountMap.set(sender, data.counts[sender]);
-        }
+        if (!res.ok) throw new Error("Failed to fetch unread counts");
+        const data = await res.json();
+        return data;
     } catch (err) {
-        console.error("Failed to fetch unread counts:", err);
+        console.error("Unread count error:", err.message);
+        return {};
     }
+}
+
+// --- Update Unread Count Map + Trigger Badge Refresh ---
+function updateUnreadUI(counts) {
+    unreadCountMap.clear();
+    for (const [senderUsername, count] of Object.entries(counts)) {
+        unreadCountMap.set(senderUsername, count);
+    }
+    updateUnreadBadges();
+}
+
+// --- Update Unread Badges (UI only) ---
+function updateUnreadBadges() {
+    const userDivs = document.querySelectorAll("#userList .user");
+    userDivs.forEach(div => {
+        const username = div.dataset.username;
+        const badge = div.querySelector(".badge");
+        const count = unreadCountMap.get(username) || 0;
+        if (count > 0) {
+            badge.textContent = count;
+            badge.style.display = "inline-block";
+        } else {
+            badge.textContent = "";
+            badge.style.display = "none";
+        }
+    });
 }
 
 // --- Render Sidebar ---
@@ -138,9 +189,11 @@ function renderUserSidebar(recentArr, suggestedArr) {
             }
         });
     }
+
+    // ✅ Fix: ensure badges reflect actual unreadCountMap
+    updateUnreadBadges();
 }
 
-// --- Get Suggested Users ---
 function getSuggestedUsers() {
     return Array.from(lastSeenMap.keys()).filter(
         u => u !== liveUser.username && !recentChats.includes(u)
@@ -236,7 +289,7 @@ messageForm.addEventListener("submit", async (e) => {
     messageInput.value = "";
 });
 
-// --- Append Message to UI ---
+// --- Append Message ---
 function appendMessage(message, isSender) {
     const div = document.createElement("div");
     div.classList.add("message", isSender ? "sent" : "received");
@@ -245,7 +298,7 @@ function appendMessage(message, isSender) {
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-// --- Receive Message Real-Time ---
+// --- Real-Time: Receive Message ---
 socket.on("receive-message", (message) => {
     const senderUsername = message.sender.username;
 
@@ -267,7 +320,7 @@ socket.on("receive-message", (message) => {
     renderUserSidebar(recentChats, getSuggestedUsers());
 });
 
-// --- Online Status Update Real-Time ---
+// --- Real-Time: Online Status Update ---
 socket.on("user-status-change", ({ username, isOnline, lastSeen }) => {
     onlineStatus.set(username, isOnline);
     lastSeenMap.set(username, lastSeen);
@@ -279,7 +332,11 @@ socket.on("user-status-change", ({ username, isOnline, lastSeen }) => {
 
 // --- Initial Load ---
 window.addEventListener("DOMContentLoaded", async () => {
-    await fetchUnreadCounts();
+    const counts = await fetchUnreadCounts();
+    for (const [senderUsername, count] of Object.entries(counts)) {
+        unreadCountMap.set(senderUsername, count);
+    }
+
     await fetchRecentChats();
 
     const previouslySelected = localStorage.getItem("selectedChatUser");
