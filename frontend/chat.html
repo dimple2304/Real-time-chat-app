@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>D-Chat</title>
+    <link rel="stylesheet" href="./css/chat.css" />
+</head>
+
+<body>
+    <div class="chat-container">
+        <aside class="sidebar">
+            <h2>D-Chat</h2>
+            <div id="userList">
+                <!-- User list populated dynamically -->
+            </div>
+
+            <!-- <ul class="chatList">
+                <li></li>
+            </ul> -->
+        </aside>
+
+        <main class="chat-main">
+            <header class="chat-header">
+                <h3 id="chatWith">Select a user</h3>
+                <div id="userStatus" style="font-size: 0.9em; color: #a7a7a7;"></div>
+            </header>
+
+
+            <div class="chat-messages" id="chatMessages">
+                <!-- Messages will appear here -->
+            </div>
+
+            <form id="messageForm" class="chat-form">
+                <input type="text" id="messageInput" placeholder="Type a message..." autocomplete="off" required />
+                <button type="submit">Send</button>
+            </form>
+        </main>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="./js/chat.js"></script>
+</body>
+
+</html>

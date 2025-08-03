@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>D-Chat | Welcome</title>
+  <link rel="stylesheet" href="./css/index.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="left-panel">
+      <img src="./images/mainlogo.jpeg" alt="D-Chat Logo" class="logo" />
+      <h1>Welcome to D-Chat</h1>
+      <p>A real-time, secure and sleek messaging app designed for you.</p>
+    </div>
+
+    <div class="right-panel">
+      <div class="form-toggle">
+        <button id="showSignup" class="toggle-btn active">Sign Up</button>
+        <button id="showLogin" class="toggle-btn">Log In</button>
+      </div>
+
+      <!-- Signup Form -->
+      <form id="signinForm" class="form" method="POST">
+        <label for="newUsername">Username:</label>
+        <input type="text" id="newUsername" name="username" placeholder="Enter your username" required />
+        <span id="usernameError" class="error"></span>
+
+        <label for="newEmail">Email:</label>
+        <input type="email" id="newEmail" name="email" placeholder="Enter your email" required />
+        <span id="emailError" class="error"></span>
+
+        <label for="newPassword">Password:</label>
+        <input type="password" id="newPassword" name="password" placeholder="Enter a strong password" required />
+        <span id="passwordError" class="error"></span>
+
+        <div id="otpSection">
+          <label for="otpInput">Enter OTP:</label>
+          <input type="text" id="otpInput" name="otpInput" placeholder="Enter OTP" />
+          <span id="otpError" class="error"></span>
+        </div>
+
+        <button type="submit" id="signup">Verify</button>
+        <button type="submit" id="register">Register</button>
+      </form>
+
+      <!-- Login Form -->
+      <form id="loginForm" class="form" action="/login" method="POST">
+        <label for="username">Username:</label>
+        <input type="text" id="username" name="username" placeholder="Enter username" required />
+        <span id="loginUsernameError" class="error"></span>
+
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password" placeholder="Enter password" required />
+        <span id="loginPasswordError" class="error"></span>
+
+        <button type="submit" id="login">Log in</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="./js/auth.js"></script>
+  <script src="https://unpkg.com/sweetalert/dist/sweetalert.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+Folder PATH listing for volume OS
+Volume serial number is A23B-7690
+C:.
+¦   structure.txt
+¦   todo.txt
+¦   
++---backend
+¦   ¦   .env
+¦   ¦   package-lock.json
+¦   ¦   package.json
+¦   ¦   server.js
+¦   ¦   
+¦   +---config
+¦   ¦       db.js
+¦   ¦       index.js
+¦   ¦       
+¦   +---controllers
+¦   ¦       authController.js
+¦   ¦       messageController.js
+¦   ¦       userController.js
+¦   ¦       
+¦   +---middlewares
+¦   ¦       authMiddleware.js
+¦   ¦       errorHandler.js
+¦   ¦       
+¦   +---models
+¦   ¦       message.js
+¦   ¦       user.js
+¦   ¦       
+¦   +---routes
+¦   ¦       authentication.js
+¦   ¦       messages.js
+¦   ¦       user.js
+¦   ¦       
+¦   +---utils
+¦           sendMail.js
+¦           
++---frontend
+    ¦   chat.html
+    ¦   index.html
+    ¦   profile.html
+    ¦   
+    +---css
+    ¦       chat.css
+    ¦       index.css
+    ¦       
+    +---images
+    ¦       mainlogo.jpeg
+    ¦       
+    +---js
+            auth.js
+            chat.js
+            profile.js
+            

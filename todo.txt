@@ -1,0 +1,56 @@
+Step 1 – backend/config/db.js
+Setup MongoDB connection with Mongoose.
+
+Export a connectDB() function.
+
+Step 2 – backend/server.js
+Import connectDB() and call it.
+
+Setup Express server.
+
+Enable CORS and JSON parsing.
+
+Create an HTTP server and attach Socket.IO.
+
+Add a simple test route (/api/test) to confirm server is running.
+
+Step 3 – backend/models/User.js
+Define User schema with fields:
+
+email, username, password,
+
+isVerified, profilePic, bio,
+
+isOnline, lastSeen.
+
+Export the model.
+
+Step 4 – backend/routes/authRoutes.js
+Create Express router for signup, login, and email verification routes.
+
+Export the router.
+
+Step 5 – backend/controllers/authController.js
+Write logic for signup:
+
+Validate input, hash password.
+
+Save user to DB with isVerified: false.
+
+Send verification email using Nodemailer.
+
+Write login logic:
+
+Check email, password, and verification status.
+
+Generate JWT token.
+
+Once these are working, you’ll have:
+
+Database connected
+
+User model ready
+
+Basic signup/login with email verification
+
+Then we can move to profile routes and real-time chat.
