@@ -72,3 +72,45 @@ export const getUserByUsername = async (req, res) => {
   }
 };
 
+
+export const logout = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    await User.findByIdAndUpdate(userId, {
+      isOnline: false,
+      lastSeen: new Date()
+    });
+
+    res.status(200).json({ message: "Logout successful" });
+  } catch (err) {
+    console.error("Logout error:", err);
+    res.status(500).json({ error: "Server error during logout" });
+  }
+};
+
+
+
+// export const updateProfile = async (req, res) => {
+//   try {
+//     const { bio, profilePic } = req.body;
+//     const username = req.params.username;
+
+//     const user = await User.findOne({ username });
+
+//     if (!user) {
+//       return res.status(404).json({ message: "User not found" });
+//     }
+
+//     user.bio = bio;
+//     user.profilePic = profilePic;
+//     await user.save();
+
+//     return res.json({ user });
+//   } catch (err) {
+//     console.error("Error in getUserByUsername:", err);
+//     res.status(500).json({ message: "Internal server error" });
+//   }
+// };
+
+

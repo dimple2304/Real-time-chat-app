@@ -8,6 +8,27 @@ if (!liveUser || !token || !liveUser.username || !liveUser._id) {
     window.location.href = "/index.html";
 }
 
+const settingsBtn = document.getElementById("settingsBtn");
+
+settingsBtn.addEventListener("click", () => {
+    logoutBtn.classList.toggle("hidden");
+});
+
+document.getElementById("logoutBtn")?.addEventListener("click", () => {
+    socket.emit("user-away", {
+        userId: liveUser._id,
+        lastSeen: new Date().toISOString(),
+    });
+    socket.disconnect();
+
+    localStorage.removeItem("token");
+    localStorage.removeItem("liveUser");
+    localStorage.removeItem("selectedChatUser");
+    localStorage.removeItem("user_dimple");
+
+    window.location.href = "/index.html";
+});
+
 socket.emit("joinRoom", liveUser._id);
 
 const userList = document.getElementById("userList");
@@ -16,14 +37,42 @@ const userStatus = document.getElementById("userStatus");
 const chatMessages = document.getElementById("chatMessages");
 const messageForm = document.getElementById("messageForm");
 const messageInput = document.getElementById("messageInput");
+const searchInput = document.querySelector('.search-bar input');
 
 let selectedUserUsername = null;
+let selectedUserId = null;
 let recentChats = [];
 const onlineStatus = new Map();
 const lastSeenMap = new Map();
 const unreadCountMap = new Map();
+let seenMessagesSet = new Set();
 
-// --- Handle User Click ---
+let originalRecentUsers = [];
+let originalSuggestedUsers = [];
+
+localStorage.removeItem("selectedUser");
+
+// --- Visibility / Unload / Tab switch detection ---
+document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+        socket.emit("user-away", {
+            userId: liveUser._id,
+            lastSeen: new Date().toISOString(),
+        });
+    } else if (document.visibilityState === "visible") {
+        socket.emit("user-back", liveUser._id);
+    }
+});
+
+window.addEventListener("beforeunload", () => {
+    socket.emit("user-away", {
+        userId: liveUser._id,
+        lastSeen: new Date().toISOString(),
+    });
+    socket.disconnect();
+});
+
+// ---------------------------------------------
 async function handleUserClick(username) {
     if (username === liveUser.username) return;
 
@@ -38,21 +87,18 @@ async function handleUserClick(username) {
         const { isOnline, lastSeen } = await res.json();
         updateUserStatusUI(isOnline, lastSeen);
     } catch (err) {
-        console.error("Status fetch failed:", err);
         userStatus.textContent = "Offline";
     }
-
-    await fetchMessages(username);
 
     try {
         const res = await fetch(`/api/users/find/${username}`, {
             headers: { Authorization: `Bearer ${token}` },
         });
 
-        if (!res.ok) throw new Error("User not found or server error");
-        const selectedUser = await res.json();
+        const user = await res.json();
+        selectedUserId = user._id;
 
-        await fetch(`/api/messages/mark-read/${selectedUser._id}/${liveUser._id}`, {
+        await fetch(`/api/messages/mark-read/${selectedUserId}/${liveUser._id}`, {
             method: 'PUT',
             headers: { Authorization: `Bearer ${token}` }
         });
@@ -60,15 +106,31 @@ async function handleUserClick(username) {
         const updatedCounts = await fetchUnreadCounts();
         updateUnreadUI(updatedCounts);
 
+        socket.emit("messages-seen", {
+            senderId: selectedUserId,
+            receiverId: liveUser._id,
+        });
+
+        await fetchMessages(username);
+        socket.emit("mark-seen", {
+            senderId: selectedUserId,
+            receiverId: liveUser._id
+        });
+        socket.emit("chatOpened", {
+            viewerId: liveUser._id,
+            chattingWithId: selectedUserId
+        });
+
+        await updateSeenMarker();
+
     } catch (err) {
         console.error("Failed to mark messages as read:", err);
     }
 
     unreadCountMap.set(username, 0);
-    renderUserSidebar(recentChats, getSuggestedUsers());
+    renderUserSidebar(recentChats, originalSuggestedUsers);
 }
 
-// --- Update Online/Offline Status ---
 function updateUserStatusUI(isOnline, lastSeen) {
     if (isOnline) {
         userStatus.textContent = "Online";
@@ -83,7 +145,6 @@ function updateUserStatusUI(isOnline, lastSeen) {
     }
 }
 
-// --- Fetch Recent Chats ---
 async function fetchRecentChats() {
     try {
         const res = await fetch(`/api/messages/chats/${liveUser.username}`, {
@@ -96,17 +157,22 @@ async function fetchRecentChats() {
             headers: { Authorization: `Bearer ${token}` }
         });
         const usersData = await usersRes.json();
-        const allUsers = usersData.users.map(u => u.username);
 
         usersData.users.forEach(user => {
             onlineStatus.set(user.username, user.isOnline);
-            lastSeenMap.set(user.username, user.updatedAt);
+            lastSeenMap.set(user.username, user.lastSeen || user.updatedAt);
         });
 
         const recent = fetchedChats.filter(u => u !== liveUser.username);
-        const suggested = allUsers.filter(u => u !== liveUser.username && !recent.includes(u));
+        const suggested = usersData.users
+            .map(u => u.username)
+            .filter(u => u !== liveUser.username && !recent.includes(u));
 
         recentChats = recent;
+
+        originalRecentUsers = [...recent];
+        originalSuggestedUsers = [...suggested];
+
         renderUserSidebar(recent, suggested);
 
     } catch (err) {
@@ -114,26 +180,19 @@ async function fetchRecentChats() {
     }
 }
 
-// --- Fetch Unread Counts ---
 async function fetchUnreadCounts() {
     try {
         const res = await fetch(`/api/messages/unread-counts/${liveUser.username}`, {
-            headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json"
-            }
+            headers: { Authorization: `Bearer ${token}` }
         });
-
-        if (!res.ok) throw new Error("Failed to fetch unread counts");
-        const data = await res.json();
-        return data;
+        if (!res.ok) throw new Error("Unread count fetch failed");
+        return await res.json();
     } catch (err) {
         console.error("Unread count error:", err.message);
         return {};
     }
 }
 
-// --- Update Unread Count Map + Trigger Badge Refresh ---
 function updateUnreadUI(counts) {
     unreadCountMap.clear();
     for (const [senderUsername, count] of Object.entries(counts)) {
@@ -142,34 +201,44 @@ function updateUnreadUI(counts) {
     updateUnreadBadges();
 }
 
-// --- Update Unread Badges (UI only) ---
 function updateUnreadBadges() {
     const userDivs = document.querySelectorAll("#userList .user");
     userDivs.forEach(div => {
         const username = div.dataset.username;
         const badge = div.querySelector(".badge");
         const count = unreadCountMap.get(username) || 0;
-        if (count > 0) {
-            badge.textContent = count;
-            badge.style.display = "inline-block";
-        } else {
-            badge.textContent = "";
-            badge.style.display = "none";
-        }
+        badge.textContent = count;
+        badge.style.display = count > 0 ? "inline-block" : "none";
     });
 }
 
-// --- Render Sidebar ---
 function renderUserSidebar(recentArr, suggestedArr) {
-    userList.innerHTML = "";
+    const searchInput = document.getElementById("userSearch");
+    const searchValue = searchInput.value.trim().toLowerCase();
+
+    userList.innerHTML = ""; // Clear old sidebar
+
+    // Preserve originals only once
+    if (!window.originalRecentUsers) {
+        window.originalRecentUsers = [...recentArr];
+    }
+    if (!window.originalSuggestedUsers) {
+        window.originalSuggestedUsers = [...suggestedArr];
+    }
+
     const rendered = new Set();
 
-    if (recentArr.length > 0) {
-        const recentHeader = document.createElement("h3");
-        recentHeader.textContent = "Recent Chats";
-        userList.appendChild(recentHeader);
+    // Filter and render Recent Chats
+    const matchingRecent = recentArr.filter(u =>
+        u.toLowerCase().includes(searchValue)
+    );
 
-        recentArr.forEach(username => {
+    if (matchingRecent.length) {
+        const h = document.createElement("h3");
+        h.textContent = "Recent Chats";
+        userList.appendChild(h);
+
+        matchingRecent.forEach(username => {
             if (!rendered.has(username)) {
                 renderUser(username);
                 rendered.add(username);
@@ -177,12 +246,17 @@ function renderUserSidebar(recentArr, suggestedArr) {
         });
     }
 
-    if (suggestedArr.length > 0) {
-        const suggestHeader = document.createElement("h3");
-        suggestHeader.textContent = "Suggested Accounts";
-        userList.appendChild(suggestHeader);
+    // Filter and render Suggested Accounts
+    const matchingSuggested = suggestedArr.filter(u =>
+        !rendered.has(u) && u.toLowerCase().includes(searchValue)
+    );
 
-        suggestedArr.forEach(username => {
+    if (matchingSuggested.length) {
+        const h = document.createElement("h3");
+        h.textContent = "Suggested Accounts";
+        userList.appendChild(h);
+
+        matchingSuggested.forEach(username => {
             if (!rendered.has(username)) {
                 renderUser(username);
                 rendered.add(username);
@@ -190,9 +264,35 @@ function renderUserSidebar(recentArr, suggestedArr) {
         });
     }
 
-    // ✅ Fix: ensure badges reflect actual unreadCountMap
     updateUnreadBadges();
 }
+
+
+
+
+/* search input */
+searchInput.addEventListener('input', () => {
+    const query = searchInput.value.trim().toLowerCase();
+
+    if (query === "") {
+        renderUserSidebar(window.originalRecentUsers, window.originalSuggestedUsers);
+        return;
+    }
+
+    // Filter both lists
+    const filteredRecent = window.originalRecentUsers.filter(username =>
+        username.toLowerCase().includes(query)
+    );
+    const filteredSuggested = window.originalSuggestedUsers.filter(username =>
+        username.toLowerCase().includes(query)
+    );
+
+    renderUserSidebar(filteredRecent, filteredSuggested);
+});
+
+
+
+
 
 function getSuggestedUsers() {
     return Array.from(lastSeenMap.keys()).filter(
@@ -200,8 +300,33 @@ function getSuggestedUsers() {
     );
 }
 
-// --- Render Individual User ---
 function renderUser(username) {
+    const containerDiv = document.createElement("div");
+    containerDiv.style.display = "flex";
+    containerDiv.style.alignItems = "center";
+
+    const profileButton = document.createElement("button");
+    profileButton.classList.add("profile-button");
+
+    const profilePic = document.createElement("img");
+    profilePic.classList.add("profile-pic");
+    profilePic.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
+        username
+    )}&background=random&color=fff&size=32`;
+    profilePic.alt = `${username}'s profile picture`;
+    profilePic.onerror = function () {
+        this.src =
+            "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%23ccc'/%3E%3Ctext x='16' y='20' text-anchor='middle' fill='white' font-family='Arial' font-size='14'%3E" +
+            username.charAt(0).toUpperCase() +
+            "%3C/text%3E%3C/svg%3E";
+    };
+
+    profileButton.appendChild(profilePic);
+    profileButton.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openProfileModal(username);
+    });
+
     const userDiv = document.createElement("div");
     userDiv.classList.add("user");
     userDiv.dataset.username = username;
@@ -212,12 +337,8 @@ function renderUser(username) {
     const badgeSpan = document.createElement("span");
     badgeSpan.classList.add("badge");
     const unreadCount = unreadCountMap.get(username) || 0;
-    if (unreadCount > 0) {
-        badgeSpan.textContent = unreadCount;
-        badgeSpan.style.display = "inline-block";
-    } else {
-        badgeSpan.style.display = "none";
-    }
+    badgeSpan.textContent = unreadCount;
+    badgeSpan.style.display = unreadCount > 0 ? "inline-block" : "none";
 
     userDiv.appendChild(nameSpan);
     userDiv.appendChild(badgeSpan);
@@ -227,10 +348,12 @@ function renderUser(username) {
         handleUserClick(username);
     });
 
-    userList.appendChild(userDiv);
+    containerDiv.appendChild(profileButton);
+    containerDiv.appendChild(userDiv);
+
+    userList.appendChild(containerDiv);
 }
 
-// --- Fetch Messages ---
 async function fetchMessages(receiverUsername) {
     try {
         const res = await fetch(`/api/messages/${liveUser.username}/${receiverUsername}`, {
@@ -239,30 +362,29 @@ async function fetchMessages(receiverUsername) {
         const messages = await res.json();
         chatMessages.innerHTML = "";
 
+        seenMessagesSet.clear();
+
         messages.forEach(msg => {
-            const div = document.createElement("div");
-            div.classList.add("message", msg.sender.username === liveUser.username ? "sent" : "received");
-            div.innerText = msg.content;
-            chatMessages.appendChild(div);
+            const isSender = msg.sender.username === liveUser.username;
+            appendMessage(msg, isSender);
+            if (isSender && msg.isRead) {
+                seenMessagesSet.add(msg._id);
+            }
         });
 
+        updateSeenMarker();
         chatMessages.scrollTop = chatMessages.scrollHeight;
     } catch (err) {
         console.error("Error fetching messages:", err);
     }
 }
 
-// --- Send Message ---
 messageForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    if (!selectedUserUsername) return alert("Please select a user to chat with.");
+    if (!selectedUserUsername) return alert("Select a user");
 
     const content = messageInput.value.trim();
     if (!content) return;
-
-    if (selectedUserUsername === liveUser.username) {
-        return alert("You cannot chat with yourself.");
-    }
 
     const message = {
         sender: liveUser.username,
@@ -289,16 +411,83 @@ messageForm.addEventListener("submit", async (e) => {
     messageInput.value = "";
 });
 
-// --- Append Message ---
 function appendMessage(message, isSender) {
     const div = document.createElement("div");
     div.classList.add("message", isSender ? "sent" : "received");
     div.innerText = message.content;
+
+    if (isSender) {
+        div.dataset.messageId = message._id || "";
+        const seenSpan = document.createElement("span");
+        seenSpan.classList.add("seen-indicator");
+
+        if (seenMessagesSet.has(message._id)) {
+            seenSpan.innerText = "✔✔";
+            seenSpan.style.color = "blue";
+        } else if (selectedUserId && onlineStatus.get(selectedUserUsername)) {
+            seenSpan.innerText = "✔✔";
+            seenSpan.style.color = "gray";
+        } else {
+            seenSpan.innerText = "✔";
+            seenSpan.style.color = "gray";
+        }
+
+        div.appendChild(seenSpan);
+    }
+
     chatMessages.appendChild(div);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-// --- Real-Time: Receive Message ---
+async function updateSeenMarker() {
+    const allSent = document.querySelectorAll(".message.sent");
+
+    allSent.forEach(div => {
+        const id = div.dataset.messageId;
+        const seen = div.querySelector(".seen-indicator");
+        if (!seen || !id) return;
+
+        if (seenMessagesSet.has(id)) {
+            seen.innerText = "✔✔";
+            seen.style.color = "blue";
+        }
+    });
+}
+
+socket.on("message-seen", ({ readMessageIds, by }) => {
+    if (!readMessageIds || by !== selectedUserId) return;
+
+    const allSent = document.querySelectorAll(".message.sent");
+
+    allSent.forEach(div => {
+        const msgId = div.dataset.messageId;
+        const seen = div.querySelector(".seen-indicator");
+
+        if (!seen || !msgId) return;
+
+        if (readMessageIds.includes(msgId)) {
+            seenMessagesSet.add(msgId);
+            seen.innerText = "✔✔";
+            seen.style.color = "blue";
+        }
+        appendMessage(message, isSender);
+    });
+});
+
+socket.on("update-message-status", ({ senderId }) => {
+    const allSent = document.querySelectorAll(".message.sent");
+
+    allSent.forEach(div => {
+        const seen = div.querySelector(".seen-indicator");
+        if (!seen) return;
+
+        if (seen.style.color !== "blue") {
+            seen.innerText = "✔✔";
+            seen.style.color = "gray";
+        }
+    });
+});
+
 socket.on("receive-message", (message) => {
     const senderUsername = message.sender.username;
 
@@ -306,6 +495,16 @@ socket.on("receive-message", (message) => {
 
     if (senderUsername === selectedUserUsername) {
         appendMessage(message, false);
+
+        socket.emit("messages-seen", {
+            senderId: selectedUserId,
+            receiverId: liveUser._id,
+        });
+
+        setTimeout(() => {
+            updateSeenMarker();
+        }, 50);
+
     } else {
         const count = unreadCountMap.get(senderUsername) || 0;
         unreadCountMap.set(senderUsername, count + 1);
@@ -317,10 +516,31 @@ socket.on("receive-message", (message) => {
         recentChats = [senderUsername, ...recentChats.filter(u => u !== senderUsername)];
     }
 
+    if (selectedUserId && message.sender._id === selectedUserId) {
+        socket.emit("mark-seen", {
+            senderId: selectedUserId,
+            receiverId: liveUser._id
+        });
+    }
+
+    renderUserSidebar(recentChats, originalSuggestedUsers);
+});
+
+
+
+socket.on("chat-seen", ({ seenBy, seenMessageIds }) => {
+    if (!seenBy || !seenMessageIds) return;
+
+    // Update seen state
+    seenMessageIds.forEach(id => seenMessagesSet.add(id));
+    updateSeenMarker();
+
+    // Re-render sidebar to reflect latest seen info
     renderUserSidebar(recentChats, getSuggestedUsers());
 });
 
-// --- Real-Time: Online Status Update ---
+
+
 socket.on("user-status-change", ({ username, isOnline, lastSeen }) => {
     onlineStatus.set(username, isOnline);
     lastSeenMap.set(username, lastSeen);
@@ -330,7 +550,6 @@ socket.on("user-status-change", ({ username, isOnline, lastSeen }) => {
     }
 });
 
-// --- Initial Load ---
 window.addEventListener("DOMContentLoaded", async () => {
     const counts = await fetchUnreadCounts();
     for (const [senderUsername, count] of Object.entries(counts)) {
@@ -339,8 +558,8 @@ window.addEventListener("DOMContentLoaded", async () => {
 
     await fetchRecentChats();
 
-    const previouslySelected = localStorage.getItem("selectedChatUser");
-    if (previouslySelected && previouslySelected !== liveUser.username) {
-        handleUserClick(previouslySelected);
-    }
+    // const previouslySelected = localStorage.getItem("selectedChatUser");
+    // if (previouslySelected && previouslySelected !== liveUser.username) {
+    //     handleUserClick(previouslySelected);
+    // }
 });

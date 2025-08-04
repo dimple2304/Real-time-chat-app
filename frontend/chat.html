@@ -2,45 +2,102 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>D-Chat</title>
-    <link rel="stylesheet" href="./css/chat.css" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>D-Chat</title>
+  <link rel="stylesheet" href="./css/chat.css" />
 </head>
 
 <body>
-    <div class="chat-container">
-        <aside class="sidebar">
-            <h2>D-Chat</h2>
-            <div id="userList">
-                <!-- User list populated dynamically -->
-            </div>
+  <div class="chat-container">
 
-            <!-- <ul class="chatList">
-                <li></li>
-            </ul> -->
-        </aside>
-
-        <main class="chat-main">
-            <header class="chat-header">
-                <h3 id="chatWith">Select a user</h3>
-                <div id="userStatus" style="font-size: 0.9em; color: #a7a7a7;"></div>
-            </header>
-
-
-            <div class="chat-messages" id="chatMessages">
-                <!-- Messages will appear here -->
-            </div>
-
-            <form id="messageForm" class="chat-form">
-                <input type="text" id="messageInput" placeholder="Type a message..." autocomplete="off" required />
-                <button type="submit">Send</button>
-            </form>
-        </main>
+    <div class="top-bar">
+      <button id="settingsBtn">⚙️</button>
+      <div class="logout-btn hidden" id="logoutBtn">Log out</div>
     </div>
 
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-    <script src="./js/chat.js"></script>
+    <aside class="sidebar">
+      <h2>D-Chat</h2>
+
+      <div class="search-bar">
+        <input type="search" id="userSearch" placeholder="Search users..." />
+      </div>
+
+      <div id="userList">
+        <!-- User list populated dynamically -->
+      </div>
+
+      <!-- <ul class="chatList">
+                <li></li>
+            </ul> -->
+    </aside>
+
+    <main class="chat-main">
+      <header class="chat-header">
+        <h3 id="chatWith">Select a user</h3>
+        <div id="userStatus" style="font-size: 0.9em; color: #a7a7a7"></div>
+      </header>
+
+      <div class="chat-messages" id="chatMessages">
+        <!-- Messages will appear here -->
+      </div>
+
+      <form id="messageForm" class="chat-form">
+        <input type="text" id="messageInput" placeholder="Type a message..." autocomplete="off" required />
+        <button type="submit">Send</button>
+      </form>
+
+      <dialog id="profileModal">
+        <div class="modal-content">
+          <div class="modal-header">
+            <button class="close-btn" onclick="closeProfileModal()">
+              &times;
+            </button>
+            <h2>User Profile</h2>
+          </div>
+          <div class="modal-body">
+            <img id="profilePreview" class="profile-preview" src="" alt="Profile Picture"
+              onclick="triggerFileUpload()" />
+
+            <div class="username-display" id="usernameDisplay"></div>
+
+            <div class="bio-section">
+              <div class="view-mode" id="bioViewMode">
+                <div class="bio-display" id="bioDisplay">
+                  No bio available
+                </div>
+                <button class="edit-btn" onclick="enterEditMode()">
+                  Edit Profile
+                </button>
+              </div>
+
+              <div class="edit-mode" id="bioEditMode">
+                <input type="file" id="fileInput" class="file-input" accept="image/*"
+                  onchange="handleFileUpload(event)" />
+                <input type="text" id="picUrlInput" class="pic-url-input" placeholder="Enter profile picture URL" />
+                <button class="upload-btn" onclick="triggerFileUpload()">
+                  Upload Image
+                </button>
+                <textarea id="bioEdit" class="bio-edit" placeholder="Tell us about yourself..."></textarea>
+                <div class="button-group">
+                  <button class="update-btn" onclick="updateProfile()">
+                    Update Profile
+                  </button>
+                  <button class="cancel-btn" onclick="cancelEdit()">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </dialog>
+    </main>
+  </div>
+
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="./js/chat.js"></script>
+  <script src="./js/editProfile.js"></script>
 </body>
 
 </html>
