@@ -23,9 +23,9 @@ const io = new Server(server, {
 connectDB();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../frontend')));
-app.use("/uploads", express.static(path.resolve("uploads"),{
-    maxAge: "7d", // Cache for 7 days
-    etag: false 
+app.use("/uploads", express.static(path.resolve("uploads"), {
+  maxAge: "7d", // Cache for 7 days
+  etag: false
 }));
 
 app.get('/', (req, res) => {
@@ -54,23 +54,23 @@ io.on('connection', (socket) => {
     }
   });
 
-socket.on("user-away", async ({ userId, lastSeen }) => {
+  socket.on("user-away", async ({ userId, lastSeen }) => {
     try {
-        await User.findByIdAndUpdate(userId, {
-            isOnline: false,
-            lastSeen
-        });
+      await User.findByIdAndUpdate(userId, {
+        isOnline: false,
+        lastSeen
+      });
 
-        io.emit("user-status-change", {
-            username: socket.username, // if available
-            isOnline: false,
-            lastSeen
-        });
+      io.emit("user-status-change", {
+        username: socket.username, // if available
+        isOnline: false,
+        lastSeen
+      });
 
     } catch (err) {
-        console.error("Error marking user away:", err.message);
+      console.error("Error marking user away:", err.message);
     }
-});
+  });
 
 
   socket.on('user-back', async (userId) => {
@@ -108,6 +108,8 @@ socket.on("user-away", async ({ userId, lastSeen }) => {
         isRead: false
       });
 
+      if (unreadMessages.length === 0) return;
+
       const messageIds = unreadMessages.map((msg) => msg._id);
 
       await Message.updateMany(
@@ -115,12 +117,20 @@ socket.on("user-away", async ({ userId, lastSeen }) => {
         { isRead: true }
       );
 
-      if (messageIds.length > 0) {
-        io.to(senderId).emit('message-seen', {
-          by: receiverId,
-          seenMessageIds: messageIds
+      // Get updated messages with populated data
+      const updatedMessages = await Message.find({ _id: { $in: messageIds } })
+        .populate('sender', 'username')
+        .populate('receiver', 'username');
+
+      // Notify sender for each message
+      updatedMessages.forEach(msg => {
+        io.to(msg.sender._id.toString()).emit('message-status-update', {
+          messageId: msg._id,
+          status: 'read',
+          message: msg
         });
-      }
+      });
+
     } catch (err) {
       console.error('Mark seen error:', err.message);
     }
@@ -134,14 +144,27 @@ socket.on("user-away", async ({ userId, lastSeen }) => {
         isRead: false
       });
 
+      if (unseenMessages.length === 0) return;
+
       const messageIds = unseenMessages.map(m => m._id);
       await Message.updateMany({ _id: { $in: messageIds } }, { isRead: true });
 
-      io.to(chattingWithId).emit('chat-seen', {
-        seenBy: viewerId,
-        seenMessageIds: messageIds,
-        timestamp: new Date()
+      // Get updated messages with populated data
+      const updatedMessages = await Message.find({ _id: { $in: messageIds } })
+        .populate('sender', 'username')
+        .populate('receiver', 'username');
+
+      // Notify sender for each message
+      updatedMessages.forEach(msg => {
+        io.to(msg.sender._id.toString()).emit('message-status-update', {
+          messageId: msg._id,
+          status: 'read',
+          message: msg,
+          seenBy: viewerId,
+          timestamp: new Date()
+        });
       });
+
     } catch (err) {
       console.error("Error in chatOpened event:", err.message);
     }
@@ -160,13 +183,9 @@ socket.on("user-away", async ({ userId, lastSeen }) => {
         content
       });
 
-      const receiverOnline = onlineUsers.has(receiverUser._id.toString());
-      if (receiverOnline) {
-        message.isDelivered = true;
-      }
-
       const saved = await message.save();
 
+      // Update recent chats for both users
       await User.findByIdAndUpdate(senderUser._id, {
         $addToSet: { recentChats: receiverUser._id }
       });
@@ -178,9 +197,11 @@ socket.on("user-away", async ({ userId, lastSeen }) => {
         .populate('sender', 'username')
         .populate('receiver', 'username');
 
+      // Emit to both users immediately
       io.to(senderUser._id.toString()).emit('receive-message', populatedMsg);
       io.to(receiverUser._id.toString()).emit('receive-message', populatedMsg);
 
+      // Update recent chats UI
       io.to(senderUser._id.toString()).emit('recent-chat-updated', {
         contact: receiverUser.username,
         lastMessage: content
@@ -190,17 +211,66 @@ socket.on("user-away", async ({ userId, lastSeen }) => {
         lastMessage: content
       });
 
+      // Check if receiver is online and mark as delivered
+      const receiverOnline = onlineUsers.has(receiverUser._id.toString());
       if (receiverOnline) {
-        const senderSocketId = onlineUsers.get(senderUser._id.toString());
-        if (senderSocketId) {
-          io.to(senderSocketId).emit('message-delivered', {
-            messageId: saved._id
-          });
-        }
+        await Message.findByIdAndUpdate(saved._id, { isDelivered: true });
+        const updatedMsg = await Message.findById(saved._id)
+          .populate('sender', 'username')
+          .populate('receiver', 'username');
+
+        // Emit delivery update to sender
+        io.to(senderUser._id.toString()).emit('message-status-update', {
+          messageId: saved._id,
+          status: 'delivered',
+          message: updatedMsg
+        });
       }
 
     } catch (err) {
       console.error('Error in socket send-message:', err.message);
+    }
+  });
+
+
+  socket.on('joinRoom', async (userId) => {
+    socket.join(userId);
+    socket.userId = userId;
+    onlineUsers.set(userId, socket.id);
+
+    try {
+      // Mark user as online
+      await User.findByIdAndUpdate(userId, { isOnline: true });
+      io.emit('user-status-change', { userId, isOnline: true });
+
+      // Mark all pending messages as delivered
+      const undeliveredMessages = await Message.find({
+        receiver: userId,
+        isDelivered: false
+      });
+
+      if (undeliveredMessages.length > 0) {
+        await Message.updateMany(
+          { _id: { $in: undeliveredMessages.map(m => m._id) } },
+          { isDelivered: true }
+        );
+
+        // Notify senders that their messages were delivered
+        for (const msg of undeliveredMessages) {
+          const senderId = msg.sender.toString();
+          const updatedMsg = await Message.findById(msg._id)
+            .populate('sender', 'username')
+            .populate('receiver', 'username');
+
+          io.to(senderId).emit('message-status-update', {
+            messageId: msg._id,
+            status: 'delivered',
+            message: updatedMsg
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Error updating online status:', err.message);
     }
   });
 
