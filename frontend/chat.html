@@ -11,11 +11,6 @@
 <body>
   <div class="chat-container">
 
-    <div class="top-bar">
-      <button id="settingsBtn">⚙️</button>
-      <div class="logout-btn hidden" id="logoutBtn">Log out</div>
-    </div>
-
     <aside class="sidebar">
       <h2>D-Chat</h2>
 
@@ -27,9 +22,23 @@
         <!-- User list populated dynamically -->
       </div>
 
-      <!-- <ul class="chatList">
-                <li></li>
-            </ul> -->
+      <div class="top-bar">
+        <div class="profileName">dimple</div>
+
+        <div class="settings-wrapper">
+          <button id="settingsBtn">⚙️</button>
+          <div class="profileMenu hidden">
+            <div class="logout-btn" id="logoutBtn">Log out</div>
+            <div class="profileSetting">My profile</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- <div class="top-bar">
+        <div class="profileName"></div>
+        <button id="settingsBtn">⚙️</button>
+        <div class="logout-btn hidden" id="logoutBtn">Log out</div>
+      </div> -->
     </aside>
 
     <main class="chat-main">

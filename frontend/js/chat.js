@@ -8,11 +8,6 @@ if (!liveUser || !token || !liveUser.username || !liveUser._id) {
     window.location.href = "/index.html";
 }
 
-const settingsBtn = document.getElementById("settingsBtn");
-
-settingsBtn.addEventListener("click", () => {
-    logoutBtn.classList.toggle("hidden");
-});
 
 document.getElementById("logoutBtn")?.addEventListener("click", () => {
     socket.emit("user-away", {
@@ -38,6 +33,22 @@ const chatMessages = document.getElementById("chatMessages");
 const messageForm = document.getElementById("messageForm");
 const messageInput = document.getElementById("messageInput");
 const searchInput = document.querySelector('.search-bar input');
+const profileName = document.querySelector('.profileName');
+
+const settingsBtn = document.getElementById("settingsBtn");
+const logoutBtn = document.getElementById("logoutBtn");
+const profileMenu = document.querySelector(".profileMenu");
+
+profileName.textContent = liveUser.username;
+settingsBtn.addEventListener("click", (e) => {
+  e.stopPropagation(); 
+  profileMenu.classList.toggle("hidden");
+});
+
+// Hide menu if user clicks outside
+document.body.addEventListener("click", () => {
+  profileMenu.classList.add("hidden");
+});
 
 let selectedUserUsername = null;
 let selectedUserId = null;
@@ -140,7 +151,8 @@ function updateUserStatusUI(isOnline, lastSeen) {
             hour: '2-digit',
             minute: '2-digit'
         });
-        userStatus.textContent = `last seen at ${time}`;
+        const date = formatDate(lastSeen);
+        userStatus.textContent = `last seen ${date + " at " + time}`.toLowerCase();
     } else {
         userStatus.textContent = "Offline";
     }
@@ -287,7 +299,7 @@ searchInput.addEventListener('input', () => {
     );
 
     const filteredSuggested = originalSuggestedUsers.filter(username =>
-        username.toLowerCase().includes(query) && 
+        username.toLowerCase().includes(query) &&
         !recentChats.includes(username)
     );
 
@@ -367,30 +379,38 @@ async function fetchMessages(receiverUsername) {
         const messages = await res.json();
         chatMessages.innerHTML = "";
         // console.log(messages);
-        
 
-        const groupMessage = messages.reduce( (acc, current) => {
+
+        const groupMessage = messages.reduce((acc, current) => {
             const date = new Date(current.createdAt)
             const key = date.toLocaleDateString() || 'default';
-            if(acc[key]) {
+            if (acc[key]) {
                 acc[key] = [...acc[key], current]
-            }else{
+            } else {
                 acc[key] = [current]
             }
             return acc;
         }, {})
-        console.log(groupMessage);
-        
+
 
         seenMessagesSet.clear();
 
-        messages.forEach(msg => {
-            const isSender = msg.sender.username === liveUser.username;
-            appendMessage(msg, isSender);
-            if (isSender && msg.isRead) {
-                seenMessagesSet.add(msg._id);
-            }
-        });
+
+
+        for (const [key, val] of Object.entries(groupMessage)) {
+            console.log(key);
+            const dateDiv = document.createElement("div");
+            dateDiv.classList.add("dateDiv");
+            dateDiv.textContent = formatDate(key);
+            chatMessages.appendChild(dateDiv);
+            val.forEach(msg => {
+                const isSender = msg.sender.username === liveUser.username;
+                appendMessage(msg, isSender);
+                if (isSender && msg.isRead) {
+                    seenMessagesSet.add(msg._id);
+                }
+            });
+        }
 
         updateSeenMarker();
         chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -398,6 +418,35 @@ async function fetchMessages(receiverUsername) {
         console.error("Error fetching messages:", err);
     }
 }
+
+// date extraction
+const formatDate = (key) => {
+    const date = new Date(key);
+    
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+
+    // Set all to midnight for accurate comparison
+    today.setHours(0, 0, 0, 0);
+    yesterday.setHours(0, 0, 0, 0);
+    const inputDate = new Date(date);
+    inputDate.setHours(0, 0, 0, 0);
+
+    if (inputDate.getTime() === today.getTime()) {
+        return "Today";
+    } else if (inputDate.getTime() === yesterday.getTime()) {
+        return "Yesterday";
+    } else {
+        // Return formatted date: Aug 3, 2025
+        return date.toLocaleDateString(undefined, {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
+    }
+};
+
 
 // Modify your message submit handler like this:
 messageForm.addEventListener("submit", async (e) => {
@@ -440,10 +489,10 @@ messageForm.addEventListener("submit", async (e) => {
 function getSuggestedUsers() {
     // Start with original suggested users
     const suggested = [...originalSuggestedUsers];
-    
+
     // Filter out any that are now in recent chats
-    return suggested.filter(u => 
-        u !== liveUser.username && 
+    return suggested.filter(u =>
+        u !== liveUser.username &&
         !recentChats.includes(u)
     );
 }
