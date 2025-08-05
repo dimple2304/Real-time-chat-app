@@ -217,6 +217,12 @@ body {
 }
 
 /* Main chat section */
+#chatWith {
+  display: inline-flex;
+  flex-direction: row-reverse;
+  gap: 10px;
+  align-items: center;
+}
 .chat-main {
   width: 75%;
   display: flex;

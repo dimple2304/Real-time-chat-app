@@ -122,7 +122,42 @@ async function handleUserClick(username) {
 
     
     localStorage.setItem("selectedChatUser", username);
-    chatWith.textContent = username;
+    const usernameDiv = document.createElement("h5");
+usernameDiv.textContent = username;
+chatWith.textContent = ""
+chatWith.appendChild(usernameDiv)
+
+     const profileButton = document.createElement("button");
+    profileButton.classList.add("profile-button");
+
+    fetch(`/api/users/find/${username}`, {
+        headers: { Authorization: `Bearer ${token}` },
+    })
+        .then((res) => res.json())
+        .then((user) => {
+            const profilePic = document.createElement("img");
+
+            const avatarUrl = user.profilePic || `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                username
+            )}&background=random&color=fff&size=32`;
+
+            profilePic.classList.add("profile-pic");
+            profilePic.src = avatarUrl;
+            profilePic.alt = `${username}'s profile picture`;
+
+            // Fallback to SVG if image load fails
+            profilePic.onerror = function () {
+                this.src =
+                    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%23ccc'/%3E%3Ctext x='16' y='20' text-anchor='middle' fill='white' font-family='Arial' font-size='14'%3E" +
+                    username.charAt(0).toUpperCase() +
+                    "%3C/text%3E%3C/svg%3E";
+            };
+
+            chatWith.appendChild(profilePic);
+        })
+        .catch((err) => {
+            console.error("Failed to load user data", err);
+        });
 
     try {
         const res = await fetch(`/api/users/status/${username}`, {
