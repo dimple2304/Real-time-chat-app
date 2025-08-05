@@ -35,7 +35,7 @@ app.use('/api/users', userRoutes);
 const onlineUsers = new Map();
 
 io.on('connection', (socket) => {
-  console.log('⚡ A user connected');
+  console.log('A user connected');
 
   socket.on('joinRoom', async (userId) => {
     socket.join(userId);
@@ -50,21 +50,24 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('user-away', async (userId) => {
+socket.on("user-away", async ({ userId, lastSeen }) => {
     try {
-      await User.findByIdAndUpdate(userId, {
-        isOnline: false,
-        lastSeen: new Date()
-      });
-      io.emit('user-status-change', {
-        userId,
-        isOnline: false,
-        lastSeen: new Date()
-      });
+        await User.findByIdAndUpdate(userId, {
+            isOnline: false,
+            lastSeen
+        });
+
+        io.emit("user-status-change", {
+            username: socket.username, // if available
+            isOnline: false,
+            lastSeen
+        });
+
     } catch (err) {
-      console.error('Error marking user away:', err.message);
+        console.error("Error marking user away:", err.message);
     }
-  });
+});
+
 
   socket.on('user-back', async (userId) => {
     try {
@@ -226,5 +229,5 @@ app.get('/test', (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`✅ Server running at http://localhost:${PORT}`);
+  console.log(`Server running at http://localhost:${PORT}`);
 });
