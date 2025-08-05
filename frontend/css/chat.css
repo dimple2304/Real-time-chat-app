@@ -75,6 +75,9 @@ body {
   width: 100px;
   text-align: center;
 }
+.logout-btn:hover{
+  text-decoration: underline;
+}
 
 .hidden {
   display: none;
@@ -83,7 +86,13 @@ body {
 .profileSetting {
   border: none; 
   cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 4px;
 }
+.profileSetting:hover{
+  background-color: #d0d0d0;
+}
+
 
 
 

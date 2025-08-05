@@ -115,19 +115,19 @@ async function handleUserClick(username) {
     const selectedUserDiv = document.querySelector(`[data-username=${username}]`);
     const prevSelected = localStorage.getItem("selectedChatUser");
     console.log(prevSelected);
-    
+
     const prevSelectedDiv = document.querySelector(`[data-username=${prevSelected}]`);
     selectedUserDiv.style.setProperty("background-color", "#d3ede9", "important");
     prevSelectedDiv.style.background = "none";
 
-    
+
     localStorage.setItem("selectedChatUser", username);
     const usernameDiv = document.createElement("h5");
-usernameDiv.textContent = username;
-chatWith.textContent = ""
-chatWith.appendChild(usernameDiv)
+    usernameDiv.textContent = username;
+    chatWith.textContent = ""
+    chatWith.appendChild(usernameDiv)
 
-     const profileButton = document.createElement("button");
+    const profileButton = document.createElement("button");
     profileButton.classList.add("profile-button");
 
     fetch(`/api/users/find/${username}`, {
@@ -288,7 +288,7 @@ function updateUnreadBadges() {
         const username = div.dataset.username;
         const badge = div.querySelector(".badge");
         const count = unreadCountMap.get(username) || 0;
-        console.log(count);        
+        console.log(count);
         badge.textContent = count;
         badge.style.display = count > 0 ? "inline-block" : "none";
     });
@@ -542,34 +542,28 @@ messageForm.addEventListener("submit", async (e) => {
         content,
     };
 
-    socket.emit("send-message", message);
-
-    messageInput.value = "";
-    appendMessage({
+    // Create temporary message with pending status
+    const tempMessage = {
+        _id: `temp-${Date.now()}`,
         sender: { username: liveUser.username },
         receiver: { username: selectedUserUsername },
         content,
         createdAt: new Date().toISOString(),
-    }, true);
+        isDelivered: false,
+        isRead: false
+    };
+    
+    appendMessage(tempMessage, true);
+    messageInput.value = "";
+    
+    // Scroll to bottom after adding the message
+    chatMessages.scrollTop = chatMessages.scrollHeight;
 
-    // Update recent chats
-    // if (!recentChats.includes(selectedUserUsername)) {
-    //     recentChats.unshift(selectedUserUsername);
-    //     // Remove from suggested if it was there
-    //     currentSuggestedUsers = currentSuggestedUsers.filter(u => u !== selectedUserUsername);
-    // } else {
-    //     recentChats = [selectedUserUsername, ...recentChats.filter(u => u !== selectedUserUsername)];
-    // }
+    // Emit the message
+    socket.emit("send-message", message);
 
-    const target = document.querySelector(`[data-usernameContainer=${selectedUserUsername}]`);
-    const target_cpy = target;
-    target.remove();
-    const recentChat = document.querySelector(".recentChat");
-    recentChat.insertAdjacentElement("afterend", target_cpy);
-
-
-    // Keep original suggested users minus any that moved to recent
-    // renderUserSidebar(recentChats, currentSuggestedUsers);
+    // The server will send back the actual message with proper ID via receive-message
+    // which will replace our temporary message
 });
 
 // Modify your getSuggestedUsers function to maintain original suggestions:
@@ -589,27 +583,33 @@ function getSuggestedUsers() {
 function appendMessage(message, isSender) {
     const div = document.createElement("div");
     div.classList.add("message", isSender ? "sent" : "received");
-    div.innerText = message.content;
-
+    div.textContent = message.content;
+    
     if (isSender) {
-        div.dataset.messageId = message._id || "";
+        div.dataset.messageId = message._id;
+        
         const seenSpan = document.createElement("span");
         seenSpan.classList.add("seen-indicator");
-
-        if (seenMessagesSet.has(message._id)) {
-            seenSpan.innerText = "✔✔";
+        
+        // Check if message is already read
+        const isRead = message.isRead || seenMessagesSet.has(message._id);
+        const isDelivered = message.isDelivered || isRead;
+        
+        if (isRead) {
+            seenSpan.textContent = "✔✔";
             seenSpan.style.color = "blue";
-        } else if (selectedUserId && onlineStatus.get(selectedUserUsername)) {
-            seenSpan.innerText = "✔✔";
+            seenMessagesSet.add(message._id);
+        } else if (isDelivered) {
+            seenSpan.textContent = "✔✔";
             seenSpan.style.color = "gray";
         } else {
-            seenSpan.innerText = "✔";
+            seenSpan.textContent = "✔";
             seenSpan.style.color = "gray";
         }
-
+        
         div.appendChild(seenSpan);
     }
-
+    
     chatMessages.appendChild(div);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
@@ -628,6 +628,55 @@ async function updateSeenMarker() {
         }
     });
 }
+
+
+// Add these with your other socket listeners
+// socket.on("message-delivered", ({ messageId }) => {
+//     updateMessageStatus(messageId, 'delivered');
+// });
+
+// socket.on("message-read", ({ messageId }) => {
+//     updateMessageStatus(messageId, 'read');
+// });
+
+// Unified status update function
+function updateMessageStatus(messageId, status) {
+    const messageDiv = document.querySelector(`.message.sent[data-message-id="${messageId}"]`);
+    if (!messageDiv) return;
+
+    const seenIndicator = messageDiv.querySelector(".seen-indicator");
+    if (!seenIndicator) return;
+
+    if (status === 'delivered') {
+        seenIndicator.innerText = "✔✔";
+        seenIndicator.style.color = "gray";
+    } else if (status === 'read') {
+        seenIndicator.innerText = "✔✔";
+        seenIndicator.style.color = "blue";
+        seenMessagesSet.add(messageId);
+    }
+}
+
+// Add this with your other socket.on() listeners
+socket.on("message-status-update", ({ messageId, status, message }) => {
+    // Find the message element in the DOM
+    const messageDiv = document.querySelector(`.message.sent[data-message-id="${messageId}"]`);
+    
+    if (!messageDiv) return;
+
+    const seenIndicator = messageDiv.querySelector(".seen-indicator");
+    if (!seenIndicator) return;
+
+    if (status === 'delivered') {
+        seenIndicator.innerText = "✔✔";
+        seenIndicator.style.color = "gray";
+    } else if (status === 'read') {
+        seenIndicator.innerText = "✔✔";
+        seenIndicator.style.color = "blue";
+        // Add to seen messages set
+        seenMessagesSet.add(messageId);
+    }
+});
 
 socket.on("message-seen", ({ readMessageIds, by }) => {
     if (!readMessageIds || by !== selectedUserId) return;
@@ -663,41 +712,44 @@ socket.on("update-message-status", ({ senderId }) => {
     });
 });
 
-socket.on("receive-message", (message) => {
+socket.on("receive-message", async (message) => {
     const senderUsername = message.sender.username;
+    const isFromSelectedUser = senderUsername === selectedUserUsername;
+    const isOurOwnMessage = senderUsername === liveUser.username;
 
-    if (senderUsername === liveUser.username) return;
+    // Handle our own messages (for status updates)
+    if (isOurOwnMessage) {
+        updateMessageStatus(message._id, message.isRead ? 'read' : message.isDelivered ? 'delivered' : 'sent');
+        return;
+    }
 
-    if (senderUsername === selectedUserUsername) {
+    // Handle messages from other users
+    if (isFromSelectedUser) {
         appendMessage(message, false);
-
-        socket.emit("messages-seen", {
-            senderId: selectedUserId,
-            receiverId: liveUser._id,
+        
+        // Mark as read immediately if chat is open
+        socket.emit("mark-seen", {
+            senderId: message.sender._id,
+            receiverId: liveUser._id
         });
-
-        setTimeout(() => {
-            updateSeenMarker();
-        }, 50);
-
+        
+        // Also mark as read on server
+        await fetch(`/api/messages/mark-read/${message.sender._id}/${liveUser._id}`, {
+            method: 'PUT',
+            headers: { Authorization: `Bearer ${token}` }
+        });
     } else {
+        // Update unread count for other senders
         const count = unreadCountMap.get(senderUsername) || 0;
         unreadCountMap.set(senderUsername, count + 1);
     }
 
+    // Update recent chats list
     if (!recentChats.includes(senderUsername)) {
         recentChats.unshift(senderUsername);
-    } else {
-        recentChats = [senderUsername, ...recentChats.filter(u => u !== senderUsername)];
+        currentSuggestedUsers = currentSuggestedUsers.filter(u => u !== senderUsername);
     }
-
-    if (selectedUserId && message.sender._id === selectedUserId) {
-        socket.emit("mark-seen", {
-            senderId: selectedUserId,
-            receiverId: liveUser._id
-        });
-    }
-
+    
     renderUserSidebar(recentChats, currentSuggestedUsers);
 });
 
