@@ -91,26 +91,50 @@ export const logout = async (req, res) => {
 
 
 
-// export const updateProfile = async (req, res) => {
-//   try {
-//     const { bio, profilePic } = req.body;
-//     const username = req.params.username;
+export const updateProfile = async (req, res) => {
+  try {
+    const { bio, profilePic } = req.body;
+    console.log(bio, profilePic)
+    console.log(req.body)
+    const username = req.params.username;
 
-//     const user = await User.findOne({ username });
+    const user = await User.findOne({ username });
 
-//     if (!user) {
-//       return res.status(404).json({ message: "User not found" });
-//     }
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
-//     user.bio = bio;
-//     user.profilePic = profilePic;
-//     await user.save();
+    user.bio = bio;
+    user.profilePic = profilePic;
+    console.log(user)
+    await user.save();
 
-//     return res.json({ user });
-//   } catch (err) {
-//     console.error("Error in getUserByUsername:", err);
-//     res.status(500).json({ message: "Internal server error" });
-//   }
-// };
+    return res.json({ user });
+  } catch (err) {
+    console.error("Error in getUserByUsername:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
+
+// Controller to handle upload
+export const uploadFile = (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: 'No file uploaded' });
+  }
+
+  res.status(200).json({
+    message: 'File uploaded successfully',
+    file: {
+      originalName: req.file.originalname,
+      storedName: req.file.filename,
+      path: req.file.path,
+      size: req.file.size,
+      mimetype: req.file.mimetype,
+      fileUrl:`http://localhost:3000/uploads/${req.file.filename}`
+    }
+  });
+};
 
 

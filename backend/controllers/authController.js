@@ -96,6 +96,8 @@ export const loginUser = async (req, res, next) => {
                 _id: existingUser._id,
                 username: existingUser.username,
                 email: existingUser.email,
+                bio: existingUser.bio,
+                profilePic: existingUser.profilePic
             }
         });
     } catch (err) {

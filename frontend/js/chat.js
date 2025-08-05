@@ -39,6 +39,7 @@ const settingsBtn = document.getElementById("settingsBtn");
 const logoutBtn = document.getElementById("logoutBtn");
 const profileMenu = document.querySelector(".profileMenu");
 
+const profileSettingButton = document.querySelector(".profileSetting");
 profileName.textContent = liveUser.username;
 settingsBtn.addEventListener("click", (e) => {
   e.stopPropagation(); 
@@ -49,6 +50,28 @@ settingsBtn.addEventListener("click", (e) => {
 document.body.addEventListener("click", () => {
   profileMenu.classList.add("hidden");
 });
+
+// open profile modal
+async function openProfileModal() {
+
+    const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(
+        liveUser.username
+    )}&background=random&color=fff&size=32`;
+
+  document.getElementById("usernameDisplay").textContent =
+    liveUser.username;
+  document.getElementById("profilePreview").src = liveUser.profilePic || avatarUrl;
+  document.getElementById("bioDisplay").textContent = liveUser.bio;
+  console.log(liveUser);
+  
+
+  document.getElementById("bioViewMode").style.display = "block";
+  document.getElementById("bioEditMode").style.display = "none";
+  document.getElementById("bioViewMode").classList.remove("editing");
+
+  document.getElementById("profileModal").showModal();
+}
+
 
 let selectedUserUsername = null;
 let selectedUserId = null;
@@ -230,15 +253,7 @@ function renderUserSidebar(recentArr, suggestedArr) {
     const searchInput = document.getElementById("userSearch");
     const searchValue = searchInput.value.trim().toLowerCase();
 
-    userList.innerHTML = ""; // Clear old sidebar
-
-    // Preserve originals only once
-    // if (!window.originalRecentUsers) {
-    //     window.originalRecentUsers = [...recentArr];
-    // }
-    // if (!window.originalSuggestedUsers) {
-    //     window.originalSuggestedUsers = [...suggestedArr];
-    // }
+    userList.innerHTML = ""; 
 
     const rendered = new Set();
 
@@ -325,6 +340,9 @@ function renderUser(username) {
     const profileButton = document.createElement("button");
     profileButton.classList.add("profile-button");
 
+    
+    
+
     const profilePic = document.createElement("img");
     profilePic.classList.add("profile-pic");
     profilePic.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
@@ -339,7 +357,7 @@ function renderUser(username) {
     };
 
     profileButton.appendChild(profilePic);
-    profileButton.addEventListener("click", (e) => {
+    profileSettingButton.addEventListener("click", (e) => {
         e.stopPropagation();
         openProfileModal(username);
     });

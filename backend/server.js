@@ -23,6 +23,7 @@ const io = new Server(server, {
 connectDB();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../frontend')));
+app.use("/uploads", express.static(path.resolve("uploads")));
 
 app.get('/', (req, res) => {
   res.redirect('/index.html');
