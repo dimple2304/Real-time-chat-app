@@ -49,6 +49,7 @@ let seenMessagesSet = new Set();
 
 let originalRecentUsers = [];
 let originalSuggestedUsers = [];
+let currentSuggestedUsers = [];
 
 localStorage.removeItem("selectedUser");
 
@@ -128,7 +129,7 @@ async function handleUserClick(username) {
     }
 
     unreadCountMap.set(username, 0);
-    renderUserSidebar(recentChats, originalSuggestedUsers);
+    renderUserSidebar(recentChats, currentSuggestedUsers);
 }
 
 function updateUserStatusUI(isOnline, lastSeen) {
@@ -172,6 +173,7 @@ async function fetchRecentChats() {
 
         originalRecentUsers = [...recent];
         originalSuggestedUsers = [...suggested];
+        currentSuggestedUsers = [...suggested];
 
         renderUserSidebar(recent, suggested);
 
@@ -219,12 +221,12 @@ function renderUserSidebar(recentArr, suggestedArr) {
     userList.innerHTML = ""; // Clear old sidebar
 
     // Preserve originals only once
-    if (!window.originalRecentUsers) {
-        window.originalRecentUsers = [...recentArr];
-    }
-    if (!window.originalSuggestedUsers) {
-        window.originalSuggestedUsers = [...suggestedArr];
-    }
+    // if (!window.originalRecentUsers) {
+    //     window.originalRecentUsers = [...recentArr];
+    // }
+    // if (!window.originalSuggestedUsers) {
+    //     window.originalSuggestedUsers = [...suggestedArr];
+    // }
 
     const rendered = new Set();
 
@@ -275,20 +277,23 @@ searchInput.addEventListener('input', () => {
     const query = searchInput.value.trim().toLowerCase();
 
     if (query === "") {
-        renderUserSidebar(window.originalRecentUsers, window.originalSuggestedUsers);
+        renderUserSidebar(recentChats, currentSuggestedUsers);
         return;
     }
 
-    // Filter both lists
-    const filteredRecent = window.originalRecentUsers.filter(username =>
+    // Always filter from original arrays when searching
+    const filteredRecent = originalRecentUsers.filter(username =>
         username.toLowerCase().includes(query)
     );
-    const filteredSuggested = window.originalSuggestedUsers.filter(username =>
-        username.toLowerCase().includes(query)
+
+    const filteredSuggested = originalSuggestedUsers.filter(username =>
+        username.toLowerCase().includes(query) && 
+        !recentChats.includes(username)
     );
 
     renderUserSidebar(filteredRecent, filteredSuggested);
 });
+
 
 
 
@@ -361,6 +366,21 @@ async function fetchMessages(receiverUsername) {
         });
         const messages = await res.json();
         chatMessages.innerHTML = "";
+        // console.log(messages);
+        
+
+        const groupMessage = messages.reduce( (acc, current) => {
+            const date = new Date(current.createdAt)
+            const key = date.toLocaleDateString() || 'default';
+            if(acc[key]) {
+                acc[key] = [...acc[key], current]
+            }else{
+                acc[key] = [current]
+            }
+            return acc;
+        }, {})
+        console.log(groupMessage);
+        
 
         seenMessagesSet.clear();
 
@@ -379,6 +399,7 @@ async function fetchMessages(receiverUsername) {
     }
 }
 
+// Modify your message submit handler like this:
 messageForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (!selectedUserUsername) return alert("Select a user");
@@ -394,6 +415,7 @@ messageForm.addEventListener("submit", async (e) => {
 
     socket.emit("send-message", message);
 
+    messageInput.value = "";
     appendMessage({
         sender: { username: liveUser.username },
         receiver: { username: selectedUserUsername },
@@ -401,15 +423,32 @@ messageForm.addEventListener("submit", async (e) => {
         createdAt: new Date().toISOString(),
     }, true);
 
+    // Update recent chats
     if (!recentChats.includes(selectedUserUsername)) {
         recentChats.unshift(selectedUserUsername);
+        // Remove from suggested if it was there
+        currentSuggestedUsers = currentSuggestedUsers.filter(u => u !== selectedUserUsername);
     } else {
         recentChats = [selectedUserUsername, ...recentChats.filter(u => u !== selectedUserUsername)];
     }
 
-    renderUserSidebar(recentChats, getSuggestedUsers());
-    messageInput.value = "";
+    // Keep original suggested users minus any that moved to recent
+    renderUserSidebar(recentChats, currentSuggestedUsers);
 });
+
+// Modify your getSuggestedUsers function to maintain original suggestions:
+function getSuggestedUsers() {
+    // Start with original suggested users
+    const suggested = [...originalSuggestedUsers];
+    
+    // Filter out any that are now in recent chats
+    return suggested.filter(u => 
+        u !== liveUser.username && 
+        !recentChats.includes(u)
+    );
+}
+
+
 
 function appendMessage(message, isSender) {
     const div = document.createElement("div");
@@ -523,7 +562,7 @@ socket.on("receive-message", (message) => {
         });
     }
 
-    renderUserSidebar(recentChats, originalSuggestedUsers);
+    renderUserSidebar(recentChats, currentSuggestedUsers);
 });
 
 
@@ -531,13 +570,14 @@ socket.on("receive-message", (message) => {
 socket.on("chat-seen", ({ seenBy, seenMessageIds }) => {
     if (!seenBy || !seenMessageIds) return;
 
-    // Update seen state
     seenMessageIds.forEach(id => seenMessagesSet.add(id));
     updateSeenMarker();
 
-    // Re-render sidebar to reflect latest seen info
-    renderUserSidebar(recentChats, getSuggestedUsers());
+    // Keep internal state consistent
+    currentSuggestedUsers = getSuggestedUsers();
+    renderUserSidebar(recentChats, currentSuggestedUsers);
 });
+
 
 
 
@@ -548,7 +588,12 @@ socket.on("user-status-change", ({ username, isOnline, lastSeen }) => {
     if (username === selectedUserUsername) {
         updateUserStatusUI(isOnline, lastSeen);
     }
+
+    // Update suggested users on status change
+    currentSuggestedUsers = getSuggestedUsers();
+    renderUserSidebar(recentChats, currentSuggestedUsers);
 });
+
 
 window.addEventListener("DOMContentLoaded", async () => {
     const counts = await fetchUnreadCounts();
