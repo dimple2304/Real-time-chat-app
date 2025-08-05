@@ -26,17 +26,19 @@ document.getElementById("logoutBtn")?.addEventListener("click", () => {
 
 socket.emit("joinRoom", liveUser._id);
 
-const userList = document.getElementById("userList");
-const chatWith = document.getElementById("chatWith");
-const userStatus = document.getElementById("userStatus");
-const chatMessages = document.getElementById("chatMessages");
-const messageForm = document.getElementById("messageForm");
-const messageInput = document.getElementById("messageInput");
+const userList = document.querySelector("#userList");
+const chatWith = document.querySelector("#chatWith");
+const userStatus = document.querySelector("#userStatus");
+const loadingIndicator = document.querySelector('#loadingIndicator');
+const chatMessages = document.querySelector("#chatMessages");
+const messageForm = document.querySelector("#messageForm");
+const chatForm = document.querySelector(".chat-form");
+const messageInput = document.querySelector("#messageInput");
 const searchInput = document.querySelector('.search-bar input');
 const profileName = document.querySelector('.profileName');
 
-const settingsBtn = document.getElementById("settingsBtn");
-const logoutBtn = document.getElementById("logoutBtn");
+const settingsBtn = document.querySelector("#settingsBtn");
+const logoutBtn = document.querySelector("#logoutBtn");
 const profileMenu = document.querySelector(".profileMenu");
 
 const profileSettingButton = document.querySelector(".profileSetting");
@@ -62,7 +64,7 @@ async function openProfileModal() {
         liveUser.username;
     document.getElementById("profilePreview").src = liveUser.profilePic || avatarUrl;
     document.getElementById("bioDisplay").textContent = liveUser.bio;
-    console.log(liveUser);
+    // console.log(liveUser);
 
 
     document.getElementById("bioViewMode").style.display = "block";
@@ -114,7 +116,7 @@ async function handleUserClick(username) {
     selectedUserUsername = username;
     const selectedUserDiv = document.querySelector(`[data-username=${username}]`);
     const prevSelected = localStorage.getItem("selectedChatUser");
-    console.log(prevSelected);
+    // console.log(prevSelected);
 
     const prevSelectedDiv = document.querySelector(`[data-username=${prevSelected}]`);
     selectedUserDiv.style.setProperty("background-color", "#d3ede9", "important");
@@ -126,6 +128,8 @@ async function handleUserClick(username) {
     usernameDiv.textContent = username;
     chatWith.textContent = ""
     chatWith.appendChild(usernameDiv)
+
+    chatForm.style.display = "flex";
 
     const profileButton = document.createElement("button");
     profileButton.classList.add("profile-button");
@@ -288,7 +292,7 @@ function updateUnreadBadges() {
         const username = div.dataset.username;
         const badge = div.querySelector(".badge");
         const count = unreadCountMap.get(username) || 0;
-        console.log(count);
+        // console.log(count);
         badge.textContent = count;
         badge.style.display = count > 0 ? "inline-block" : "none";
     });
@@ -380,7 +384,7 @@ function getSuggestedUsers() {
 }
 
 function renderUser(username) {
-    console.log("ll")
+    // console.log("ll")
     const containerDiv = document.createElement("div");
     containerDiv.setAttribute("data-usernameContainer", username);
     containerDiv.style.display = "flex";
@@ -453,10 +457,16 @@ function renderUser(username) {
 
 async function fetchMessages(receiverUsername) {
     try {
+        loadingIndicator.classList.remove('hidden');
+        chatMessages.innerHTML = '';
+        chatMessages.appendChild(loadingIndicator);
+
         const res = await fetch(`/api/messages/${liveUser.username}/${receiverUsername}`, {
             headers: { Authorization: `Bearer ${token}` },
         });
+
         const messages = await res.json();
+        loadingIndicator.classList.add('hidden');
         chatMessages.innerHTML = "";
         // console.log(messages);
 
@@ -478,7 +488,7 @@ async function fetchMessages(receiverUsername) {
 
 
         for (const [key, val] of Object.entries(groupMessage)) {
-            console.log(key);
+            // console.log(key);
             const dateDiv = document.createElement("div");
             dateDiv.classList.add("dateDiv");
             dateDiv.textContent = formatDate(key);
@@ -552,10 +562,10 @@ messageForm.addEventListener("submit", async (e) => {
         isDelivered: false,
         isRead: false
     };
-    
+
     appendMessage(tempMessage, true);
     messageInput.value = "";
-    
+
     // Scroll to bottom after adding the message
     chatMessages.scrollTop = chatMessages.scrollHeight;
 
@@ -584,17 +594,17 @@ function appendMessage(message, isSender) {
     const div = document.createElement("div");
     div.classList.add("message", isSender ? "sent" : "received");
     div.textContent = message.content;
-    
+
     if (isSender) {
         div.dataset.messageId = message._id;
-        
+
         const seenSpan = document.createElement("span");
         seenSpan.classList.add("seen-indicator");
-        
+
         // Check if message is already read
         const isRead = message.isRead || seenMessagesSet.has(message._id);
         const isDelivered = message.isDelivered || isRead;
-        
+
         if (isRead) {
             seenSpan.textContent = "✔✔";
             seenSpan.style.color = "blue";
@@ -606,10 +616,10 @@ function appendMessage(message, isSender) {
             seenSpan.textContent = "✔";
             seenSpan.style.color = "gray";
         }
-        
+
         div.appendChild(seenSpan);
     }
-    
+
     chatMessages.appendChild(div);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
@@ -661,7 +671,7 @@ function updateMessageStatus(messageId, status) {
 socket.on("message-status-update", ({ messageId, status, message }) => {
     // Find the message element in the DOM
     const messageDiv = document.querySelector(`.message.sent[data-message-id="${messageId}"]`);
-    
+
     if (!messageDiv) return;
 
     const seenIndicator = messageDiv.querySelector(".seen-indicator");
@@ -726,13 +736,13 @@ socket.on("receive-message", async (message) => {
     // Handle messages from other users
     if (isFromSelectedUser) {
         appendMessage(message, false);
-        
+
         // Mark as read immediately if chat is open
         socket.emit("mark-seen", {
             senderId: message.sender._id,
             receiverId: liveUser._id
         });
-        
+
         // Also mark as read on server
         await fetch(`/api/messages/mark-read/${message.sender._id}/${liveUser._id}`, {
             method: 'PUT',
@@ -749,7 +759,7 @@ socket.on("receive-message", async (message) => {
         recentChats.unshift(senderUsername);
         currentSuggestedUsers = currentSuggestedUsers.filter(u => u !== senderUsername);
     }
-    
+
     renderUserSidebar(recentChats, currentSuggestedUsers);
 });
 

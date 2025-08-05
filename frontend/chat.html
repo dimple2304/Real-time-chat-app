@@ -27,81 +27,85 @@
 
         <div class="settings-wrapper">
           <button id="settingsBtn"><i class="fa-solid fa-gear""></i></button>
-          <div class="profileMenu hidden">
-            <button class="profileSetting">My profile</button>
-            <div class="logout-btn" id="logoutBtn">Log out</div>
-          </div>
+          <div class=" profileMenu hidden">
+              <button class="profileSetting">My profile</button>
+              <div class="logout-btn" id="logoutBtn">Log out</div>
         </div>
       </div>
+  </div>
 
-      <!-- <div class="top-bar">
+  <!-- <div class="top-bar">
         <div class="profileName"></div>
         <button id="settingsBtn">⚙️</button>
         <div class="logout-btn hidden" id="logoutBtn">Log out</div>
       </div> -->
-    </aside>
+  </aside>
 
-    <main class="chat-main">
-      <header class="chat-header">
-        <h3 id="chatWith">Select a user</h3>
-        <div id="userStatus" style="font-size: 0.9em; color: #a7a7a7"></div>
-      </header>
+  <main class="chat-main">
+    <header class="chat-header">
+      <h3 id="chatWith">Select a user</h3>
+      <div id="userStatus" style="font-size: 0.9em; color: #a7a7a7"></div>
+    </header>
 
-      <div class="chat-messages" id="chatMessages">
-        <!-- Messages will appear here -->
+    <div class="chat-messages" id="chatMessages">
+      <!-- Loading indicator will appear here -->
+      <div class="loading-indicator hidden" id="loadingIndicator">
+        <div class="spinner"></div>
+        <span>Loading messages...</span>
       </div>
+      <!-- Messages will appear here -->
+    </div>
 
-      <form id="messageForm" class="chat-form">
-        <input type="text" id="messageInput" placeholder="Type a message..." autocomplete="off" required />
-        <button type="submit">Send</button>
-      </form>
+    <form id="messageForm" class="chat-form">
+      <input type="text" id="messageInput" placeholder="Type a message..." autocomplete="off" required />
+      <button type="submit">Send</button>
+    </form>
 
-      <dialog id="profileModal">
-        <div class="modal-content">
-          <div class="modal-header">
-            <button class="close-btn" onclick="closeProfileModal()">
-              &times;
-            </button>
-            <h2>User Profile</h2>
-          </div>
-          <div class="modal-body">
-            <img id="profilePreview" class="profile-preview" src="" alt="Profile Picture"
-              onclick="triggerFileUpload()" />
+    <dialog id="profileModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <button class="close-btn" onclick="closeProfileModal()">
+            &times;
+          </button>
+          <h2>User Profile</h2>
+        </div>
+        <div class="modal-body">
+          <img id="profilePreview" class="profile-preview" src="" alt="Profile Picture" onclick="triggerFileUpload()" />
 
-            <div class="username-display" id="usernameDisplay"></div>
+          <div class="username-display" id="usernameDisplay"></div>
 
-            <div class="bio-section">
-              <div class="view-mode" id="bioViewMode">
-                <div class="bio-display" id="bioDisplay" name="bio">
-                  No bio available
-                </div>
-                <button class="edit-btn" onclick="enterEditMode()">
-                  Edit Profile
-                </button>
+          <div class="bio-section">
+            <div class="view-mode" id="bioViewMode">
+              <div class="bio-display" id="bioDisplay" name="bio">
+                No bio available
               </div>
+              <button class="edit-btn" onclick="enterEditMode()">
+                Edit Profile
+              </button>
+            </div>
 
-              <div class="edit-mode" id="bioEditMode">
-                <input type="file" id="fileInput" class="file-input" accept="image/*"
-                  onchange="handleFileUpload(event)" />
-                <input type="text" id="picUrlInput" class="pic-url-input" placeholder="Enter profile picture URL" />
-                <button class="upload-btn" onclick="triggerFileUpload()">
-                  Upload Image
+            <div class="edit-mode" id="bioEditMode">
+              <input type="file" id="fileInput" class="file-input" accept="image/*"
+                onchange="handleFileUpload(event)" />
+              <input type="text" id="picUrlInput" class="pic-url-input" placeholder="Enter profile picture URL" />
+              <button class="upload-btn" onclick="triggerFileUpload()">
+                Upload Image
+              </button>
+              <textarea id="bioEdit" class="bio-edit" placeholder="Tell us about yourself..."></textarea>
+              <div class="button-group">
+                <button class="update-btn" onclick="updateProfile()">
+                  Update Profile
                 </button>
-                <textarea id="bioEdit" class="bio-edit" placeholder="Tell us about yourself..."></textarea>
-                <div class="button-group">
-                  <button class="update-btn" onclick="updateProfile()">
-                    Update Profile
-                  </button>
-                  <button class="cancel-btn" onclick="cancelEdit()">
-                    Cancel
-                  </button>
-                </div>
+                <button class="cancel-btn" onclick="cancelEdit()">
+                  Cancel
+                </button>
               </div>
             </div>
           </div>
         </div>
-      </dialog>
-    </main>
+      </div>
+    </dialog>
+  </main>
   </div>
 
   <script src="https://kit.fontawesome.com/8bdb017b66.js" crossorigin="anonymous"></script>
