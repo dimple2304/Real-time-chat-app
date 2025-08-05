@@ -23,7 +23,10 @@ const io = new Server(server, {
 connectDB();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../frontend')));
-app.use("/uploads", express.static(path.resolve("uploads")));
+app.use("/uploads", express.static(path.resolve("uploads"),{
+    maxAge: "7d", // Cache for 7 days
+    etag: false 
+}));
 
 app.get('/', (req, res) => {
   res.redirect('/index.html');

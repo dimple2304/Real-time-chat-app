@@ -67,8 +67,7 @@ body {
 }
 
 .logout-btn {
-  background-color: #e01f1f;
-  color: white;
+  color:rgb(255, 0, 0);
   padding: 6px 12px;
   border: none;
   border-radius: 4px;
@@ -79,6 +78,11 @@ body {
 
 .hidden {
   display: none;
+}
+
+.profileSetting {
+  border: none; 
+  cursor: pointer;
 }
 
 

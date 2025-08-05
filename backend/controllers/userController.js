@@ -94,8 +94,6 @@ export const logout = async (req, res) => {
 export const updateProfile = async (req, res) => {
   try {
     const { bio, profilePic } = req.body;
-    console.log(bio, profilePic)
-    console.log(req.body)
     const username = req.params.username;
 
     const user = await User.findOne({ username });

@@ -42,13 +42,13 @@ const profileMenu = document.querySelector(".profileMenu");
 const profileSettingButton = document.querySelector(".profileSetting");
 profileName.textContent = liveUser.username;
 settingsBtn.addEventListener("click", (e) => {
-  e.stopPropagation(); 
-  profileMenu.classList.toggle("hidden");
+    e.stopPropagation();
+    profileMenu.classList.toggle("hidden");
 });
 
 // Hide menu if user clicks outside
 document.body.addEventListener("click", () => {
-  profileMenu.classList.add("hidden");
+    profileMenu.classList.add("hidden");
 });
 
 // open profile modal
@@ -58,18 +58,18 @@ async function openProfileModal() {
         liveUser.username
     )}&background=random&color=fff&size=32`;
 
-  document.getElementById("usernameDisplay").textContent =
-    liveUser.username;
-  document.getElementById("profilePreview").src = liveUser.profilePic || avatarUrl;
-  document.getElementById("bioDisplay").textContent = liveUser.bio;
-  console.log(liveUser);
-  
+    document.getElementById("usernameDisplay").textContent =
+        liveUser.username;
+    document.getElementById("profilePreview").src = liveUser.profilePic || avatarUrl;
+    document.getElementById("bioDisplay").textContent = liveUser.bio;
+    console.log(liveUser);
 
-  document.getElementById("bioViewMode").style.display = "block";
-  document.getElementById("bioEditMode").style.display = "none";
-  document.getElementById("bioViewMode").classList.remove("editing");
 
-  document.getElementById("profileModal").showModal();
+    document.getElementById("bioViewMode").style.display = "block";
+    document.getElementById("bioEditMode").style.display = "none";
+    document.getElementById("bioViewMode").classList.remove("editing");
+
+    document.getElementById("profileModal").showModal();
 }
 
 
@@ -112,6 +112,15 @@ async function handleUserClick(username) {
     if (username === liveUser.username) return;
 
     selectedUserUsername = username;
+    const selectedUserDiv = document.querySelector(`[data-username=${username}]`);
+    const prevSelected = localStorage.getItem("selectedChatUser");
+    console.log(prevSelected);
+    
+    const prevSelectedDiv = document.querySelector(`[data-username=${prevSelected}]`);
+    selectedUserDiv.style.setProperty("background-color", "#d3ede9", "important");
+    prevSelectedDiv.style.background = "none";
+
+    
     localStorage.setItem("selectedChatUser", username);
     chatWith.textContent = username;
 
@@ -163,7 +172,7 @@ async function handleUserClick(username) {
     }
 
     unreadCountMap.set(username, 0);
-    renderUserSidebar(recentChats, currentSuggestedUsers);
+    // renderUserSidebar(recentChats, currentSuggestedUsers);
 }
 
 function updateUserStatusUI(isOnline, lastSeen) {
@@ -244,6 +253,7 @@ function updateUnreadBadges() {
         const username = div.dataset.username;
         const badge = div.querySelector(".badge");
         const count = unreadCountMap.get(username) || 0;
+        console.log(count);        
         badge.textContent = count;
         badge.style.display = count > 0 ? "inline-block" : "none";
     });
@@ -253,7 +263,8 @@ function renderUserSidebar(recentArr, suggestedArr) {
     const searchInput = document.getElementById("userSearch");
     const searchValue = searchInput.value.trim().toLowerCase();
 
-    userList.innerHTML = ""; 
+    userList.innerHTML = "";
+
 
     const rendered = new Set();
 
@@ -264,6 +275,7 @@ function renderUserSidebar(recentArr, suggestedArr) {
 
     if (matchingRecent.length) {
         const h = document.createElement("h3");
+        h.classList.add("recentChat");
         h.textContent = "Recent Chats";
         userList.appendChild(h);
 
@@ -333,30 +345,45 @@ function getSuggestedUsers() {
 }
 
 function renderUser(username) {
+    console.log("ll")
     const containerDiv = document.createElement("div");
+    containerDiv.setAttribute("data-usernameContainer", username);
     containerDiv.style.display = "flex";
     containerDiv.style.alignItems = "center";
 
     const profileButton = document.createElement("button");
     profileButton.classList.add("profile-button");
 
-    
-    
+    fetch(`/api/users/find/${username}`, {
+        headers: { Authorization: `Bearer ${token}` },
+    })
+        .then((res) => res.json())
+        .then((user) => {
+            const profilePic = document.createElement("img");
 
-    const profilePic = document.createElement("img");
-    profilePic.classList.add("profile-pic");
-    profilePic.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
-        username
-    )}&background=random&color=fff&size=32`;
-    profilePic.alt = `${username}'s profile picture`;
-    profilePic.onerror = function () {
-        this.src =
-            "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%23ccc'/%3E%3Ctext x='16' y='20' text-anchor='middle' fill='white' font-family='Arial' font-size='14'%3E" +
-            username.charAt(0).toUpperCase() +
-            "%3C/text%3E%3C/svg%3E";
-    };
+            const avatarUrl = user.profilePic || `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                user.username
+            )}&background=random&color=fff&size=32`;
 
-    profileButton.appendChild(profilePic);
+            profilePic.classList.add("profile-pic");
+            profilePic.src = avatarUrl;
+            profilePic.alt = `${username}'s profile picture`;
+
+            // Fallback to SVG if image load fails
+            profilePic.onerror = function () {
+                this.src =
+                    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%23ccc'/%3E%3Ctext x='16' y='20' text-anchor='middle' fill='white' font-family='Arial' font-size='14'%3E" +
+                    username.charAt(0).toUpperCase() +
+                    "%3C/text%3E%3C/svg%3E";
+            };
+
+            profileButton.appendChild(profilePic);
+        })
+        .catch((err) => {
+            console.error("Failed to load user data", err);
+        });
+
+
     profileSettingButton.addEventListener("click", (e) => {
         e.stopPropagation();
         openProfileModal(username);
@@ -440,7 +467,7 @@ async function fetchMessages(receiverUsername) {
 // date extraction
 const formatDate = (key) => {
     const date = new Date(key);
-    
+
     const today = new Date();
     const yesterday = new Date();
     yesterday.setDate(today.getDate() - 1);
@@ -491,16 +518,23 @@ messageForm.addEventListener("submit", async (e) => {
     }, true);
 
     // Update recent chats
-    if (!recentChats.includes(selectedUserUsername)) {
-        recentChats.unshift(selectedUserUsername);
-        // Remove from suggested if it was there
-        currentSuggestedUsers = currentSuggestedUsers.filter(u => u !== selectedUserUsername);
-    } else {
-        recentChats = [selectedUserUsername, ...recentChats.filter(u => u !== selectedUserUsername)];
-    }
+    // if (!recentChats.includes(selectedUserUsername)) {
+    //     recentChats.unshift(selectedUserUsername);
+    //     // Remove from suggested if it was there
+    //     currentSuggestedUsers = currentSuggestedUsers.filter(u => u !== selectedUserUsername);
+    // } else {
+    //     recentChats = [selectedUserUsername, ...recentChats.filter(u => u !== selectedUserUsername)];
+    // }
+
+    const target = document.querySelector(`[data-usernameContainer=${selectedUserUsername}]`);
+    const target_cpy = target;
+    target.remove();
+    const recentChat = document.querySelector(".recentChat");
+    recentChat.insertAdjacentElement("afterend", target_cpy);
+
 
     // Keep original suggested users minus any that moved to recent
-    renderUserSidebar(recentChats, currentSuggestedUsers);
+    // renderUserSidebar(recentChats, currentSuggestedUsers);
 });
 
 // Modify your getSuggestedUsers function to maintain original suggestions:
@@ -669,6 +703,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     }
 
     await fetchRecentChats();
+    updateUnreadBadges()
 
     // const previouslySelected = localStorage.getItem("selectedChatUser");
     // if (previouslySelected && previouslySelected !== liveUser.username) {
